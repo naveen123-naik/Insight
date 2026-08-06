@@ -26,19 +26,57 @@ export default function AIChat() {
   const chatMutation = useMutation({
     mutationFn: async (question) => {
       if (localFile) {
-        // Mock offline response
+        // Mock offline response with basic logic
         await new Promise(r => setTimeout(r, 800));
-        let mockAnswer = `I analyzed the ${localFile.rowCount} rows in ${localFile.originalName}. `;
-        if (question.toLowerCase().includes('profit')) mockAnswer += 'The overall profitability looks positive.';
-        if (question.toLowerCase().includes('city') || question.toLowerCase().includes('region')) mockAnswer += 'Hyderabad and Delhi are your top regions.';
-        
-        return {
-          answer: mockAnswer,
-          suggestedChart: question.toLowerCase().includes('city') ? {
-            type: 'bar',
-            data: localFile.records.slice(0, 5).map(r => ({ name: r.City || r.city || 'Unknown', value: parseFloat(r.Revenue || r.revenue || r.Total || r.total) || 1000 }))
-          } : null
-        };
+        const records = localFile.records || [];
+        const q = question.toLowerCase();
+        let mockAnswer = `I analyzed the ${records.length} rows in your dataset. `;
+        let chart = null;
+
+        try {
+          if (q.includes('profit') && q.includes('product')) {
+            const prodMap = {};
+            records.forEach(r => {
+              const p = String(r.Profit || r.profit || 0).replace(/[^0-9.-]+/g,"");
+              const name = r.Product || r.product || r.Item || 'Unknown';
+              prodMap[name] = (prodMap[name] || 0) + (parseFloat(p) || 0);
+            });
+            const topProd = Object.entries(prodMap).sort((a,b) => b[1] - a[1])[0];
+            if (topProd) mockAnswer = `Based on the data, the product that made the highest profit is **${topProd[0]}** with a total profit of ₹${topProd[1].toLocaleString('en-IN')}.`;
+          } else if (q.includes('city') || q.includes('region')) {
+            const cityMap = {};
+            records.forEach(r => {
+              const rev = String(r.Revenue || r.revenue || r.Total || r.total || r.Price || 0).replace(/[^0-9.-]+/g,"");
+              const city = r.City || r.city || r.Region || 'Unknown';
+              cityMap[city] = (cityMap[city] || 0) + (parseFloat(rev) || 0);
+            });
+            const topCity = Object.entries(cityMap).sort((a,b) => b[1] - a[1])[0];
+            if (topCity) mockAnswer = `The city generating the highest revenue is **${topCity[0]}** with ₹${topCity[1].toLocaleString('en-IN')}.`;
+            chart = {
+              type: 'bar',
+              data: Object.entries(cityMap).slice(0, 5).map(([name, value]) => ({ name, value }))
+            };
+          } else if (q.includes('january') || q.includes('summary')) {
+            let total = 0;
+            records.forEach(r => {
+              const rev = String(r.Revenue || r.revenue || r.Total || r.total || r.Price || 0).replace(/[^0-9.-]+/g,"");
+              total += (parseFloat(rev) || 0);
+            });
+            mockAnswer = `The total sales summary shows a cumulative revenue of ₹${total.toLocaleString('en-IN')} across ${records.length} recorded transactions.`;
+          } else if (q.includes('average')) {
+            let total = 0;
+            records.forEach(r => {
+              const rev = String(r.Revenue || r.revenue || r.Total || r.total || r.Price || 0).replace(/[^0-9.-]+/g,"");
+              total += (parseFloat(rev) || 0);
+            });
+            const avg = total / (records.length || 1);
+            mockAnswer = `The average order value (AOV) across all records is ₹${avg.toLocaleString('en-IN', {maximumFractionDigits: 2})}.`;
+          }
+        } catch (e) {
+          mockAnswer += ' (Could not compute exact metric from columns).';
+        }
+
+        return { answer: mockAnswer, suggestedChart: chart };
       }
       const res = await api.post(`/chat/${activeFileId}`, { question });
       return res.data;
