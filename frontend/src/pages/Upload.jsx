@@ -1,18 +1,63 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, CheckCircle2, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
-import axios from 'axios';
+import * as Papa from 'papaparse';
+import * as XLSX from 'xlsx';
+import api from '../services/api';
 import { useProject } from '../context/ProjectContext';
 
-// For file uploads, use direct backend URL to bypass Vercel proxy limitations with multipart
-const UPLOAD_URL = (import.meta.env.VITE_API_URL || 'https://insight-1-vf6e.onrender.com/api') + '/files/upload';
+// Parse file to records in the browser — avoids multipart upload issues
+async function parseFileInBrowser(file) {
+  const name = file.name.toLowerCase();
+  const ext = name.split('.').pop();
+
+  return new Promise((resolve, reject) => {
+    if (ext === 'csv') {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => resolve({ records: result.data, fileType: 'csv' }),
+        error: (err) => reject(err)
+      });
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const workbook = XLSX.read(e.target.result, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const records = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          resolve({ records, fileType: ext });
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    } else if (ext === 'json') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const records = JSON.parse(e.target.result);
+          resolve({ records: Array.isArray(records) ? records : [records], fileType: 'json' });
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    } else {
+      reject(new Error(`Unsupported file format: .${ext}. Use CSV, Excel (.xlsx/.xls), or JSON.`));
+    }
+  });
+}
 
 export default function Upload() {
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
-  
+  const [progress, setProgress] = useState('');
+
   const { fetchFiles, setActiveFileId } = useProject();
   const navigate = useNavigate();
 
@@ -20,6 +65,7 @@ export default function Upload() {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setError(null);
+      setUploadResult(null);
     }
   };
 
@@ -28,6 +74,7 @@ export default function Upload() {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0]);
       setError(null);
+      setUploadResult(null);
     }
   };
 
@@ -39,27 +86,35 @@ export default function Upload() {
 
     setIsUploading(true);
     setError(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
+    setProgress('Reading file...');
 
     try {
-      const token = localStorage.getItem('insightai_token');
-      const res = await axios.post(UPLOAD_URL, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+      // Step 1: Parse file in browser (no multipart needed)
+      const { records, fileType } = await parseFileInBrowser(file);
+
+      if (!records || records.length === 0) {
+        throw new Error('File appears to be empty or has no readable rows.');
+      }
+
+      setProgress(`Parsed ${records.length} rows. Uploading to server...`);
+
+      // Step 2: Send JSON records to backend via Vercel proxy (no multipart issues)
+      const res = await api.post('/files/upload-json', {
+        records,
+        originalName: file.name,
+        fileType
       });
 
       setUploadResult(res.data.file);
+      setProgress('');
       await fetchFiles();
       if (res.data.file?.id) {
         setActiveFileId(res.data.file.id);
       }
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.error || 'File upload failed. Please try again.');
+      console.error('Upload error:', err);
+      setProgress('');
+      setError(err.response?.data?.error || err.message || 'File upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -77,16 +132,16 @@ export default function Upload() {
       </div>
 
       {/* Drag & Drop Zone */}
-      <div 
+      <div
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         className="glass-card p-10 border-2 border-dashed border-[#CBD5E1] hover:border-[#2563EB] rounded-2xl text-center cursor-pointer transition-all bg-white group"
       >
-        <input 
-          type="file" 
-          accept=".csv, .xlsx, .xls, .json" 
+        <input
+          type="file"
+          accept=".csv, .xlsx, .xls, .json"
           onChange={handleFileChange}
-          className="hidden" 
+          className="hidden"
           id="file-upload-input"
         />
         <label htmlFor="file-upload-input" className="cursor-pointer flex flex-col items-center">
@@ -101,6 +156,13 @@ export default function Upload() {
           <span className="text-[11px] text-[#94A3B8] mt-2">Maximum file size: 50MB</span>
         </label>
       </div>
+
+      {progress && (
+        <div className="bg-blue-50 border border-blue-200 text-[#2563EB] p-4 rounded-xl text-xs flex items-center gap-2">
+          <Sparkles className="w-4 h-4 animate-spin" />
+          <span>{progress}</span>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-[#EF4444] p-4 rounded-xl text-xs flex items-center gap-2">

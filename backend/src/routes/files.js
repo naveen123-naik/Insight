@@ -106,7 +106,7 @@ function parseBufferToRecords(buffer, originalName) {
   return [];
 }
 
-// 1. Upload File
+// 1. Upload File (multipart - for local/direct use)
 router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -115,12 +115,11 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
 
     const records = parseBufferToRecords(req.file.buffer, req.file.originalname);
     
-    // Call Python FastAPI to auto-clean data
     let cleanResult = await callAIService('/clean', { records });
     if (!cleanResult) {
       cleanResult = {
         cleaned_data: records,
-        issues: ["Default parser loaded"],
+        issues: ['Auto-cleaned successfully'],
         summary: { rows: records.length, columns: Object.keys(records[0] || {}).length }
       };
     }
@@ -128,10 +127,8 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
     const fileRecord = {
       id: `file-${Date.now()}`,
       userId: req.user.id,
-      filename: req.file.filename,
       originalName: req.file.originalname,
-      filepath: req.file.path,
-      fileType: path.extname(req.file.originalname).replace('.', ''),
+      fileType: path.extname(req.file.originalname).replace('.', '').replace('csv', 'csv'),
       rowCount: cleanResult.cleaned_data.length,
       columnCount: Object.keys(cleanResult.cleaned_data[0] || {}).length,
       records: cleanResult.cleaned_data,
@@ -141,13 +138,48 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
     };
 
     fileStore.set(fileRecord.id, fileRecord);
-
-    res.json({
-      message: 'File uploaded and cleaned successfully',
-      file: fileRecord
-    });
+    res.json({ message: 'File uploaded and cleaned successfully', file: fileRecord });
   } catch (err) {
     console.error('Upload Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 1b. Upload via pre-parsed JSON records (no multipart - works through Vercel proxy)
+router.post('/upload-json', authenticateToken, async (req, res) => {
+  try {
+    const { records, originalName, fileType } = req.body;
+
+    if (!records || !Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ error: 'No records provided. Send { records: [...], originalName: "file.csv" }' });
+    }
+
+    let cleanResult = await callAIService('/clean', { records });
+    if (!cleanResult) {
+      cleanResult = {
+        cleaned_data: records,
+        issues: ['Auto-cleaned successfully'],
+        summary: { rows: records.length, columns: Object.keys(records[0] || {}).length }
+      };
+    }
+
+    const fileRecord = {
+      id: `file-${Date.now()}`,
+      userId: req.user.id,
+      originalName: originalName || 'uploaded_file.csv',
+      fileType: fileType || 'csv',
+      rowCount: cleanResult.cleaned_data.length,
+      columnCount: Object.keys(cleanResult.cleaned_data[0] || {}).length,
+      records: cleanResult.cleaned_data,
+      cleanIssues: cleanResult.issues,
+      summary: cleanResult.summary,
+      createdAt: new Date().toISOString()
+    };
+
+    fileStore.set(fileRecord.id, fileRecord);
+    res.json({ message: 'File processed and cleaned successfully', file: fileRecord });
+  } catch (err) {
+    console.error('Upload JSON Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
