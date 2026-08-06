@@ -66,12 +66,30 @@ export function ProjectProvider({ children }) {
       const res = await api.get('/files');
       if (res.data.files && res.data.files.length > 0) {
         const backendFiles = res.data.files;
-        // Merge local + backend files (local first)
+        
         const localMetas = Object.values(localDatasets);
-        setFilesList([...localMetas, ...backendFiles]);
+        
+        // Remove local fallback if we have a successful backend upload of the same file
+        const filteredLocal = localMetas.filter(local => 
+          !backendFiles.some(bf => bf.originalName === local.originalName && bf.rowCount === local.rowCount)
+        );
+
+        // Deduplicate backend files (in case user uploaded the same file twice)
+        const uniqueBackend = [];
+        const seen = new Set();
+        backendFiles.forEach(bf => {
+           const key = `${bf.originalName}-${bf.rowCount}`;
+           if (!seen.has(key)) {
+             uniqueBackend.push(bf);
+             seen.add(key);
+           }
+        });
+
+        setFilesList([...filteredLocal, ...uniqueBackend]);
+        
         // Only switch to backend file if currently on sample and no local file active
-        if (activeFileId === 'sample-sales-001' && localMetas.length === 0) {
-          setActiveFileId(backendFiles[0].id);
+        if (activeFileId === 'sample-sales-001' && filteredLocal.length === 0 && uniqueBackend.length > 0) {
+          setActiveFileId(uniqueBackend[0].id);
         }
       }
     } catch (err) {
