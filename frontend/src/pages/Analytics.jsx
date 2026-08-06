@@ -33,7 +33,33 @@ export default function Analytics() {
   });
 
   const records = localFile?.records || fileData?.records || [];
-  const charts = analyticsData?.analytics?.charts || {};
+
+  // Compute charts from local records when backend not available
+  const localCharts = useMemo(() => {
+    if (!localFile || !records.length) return null;
+    const sample = records[0] || {};
+    const keys = Object.keys(sample);
+    const findCol = (...kws) => keys.find(k => kws.some(kw => k.toLowerCase().includes(kw))) || null;
+    const revCol = findCol('revenue', 'amount', 'price', 'sales', 'total');
+    const catCol = findCol('category', 'type', 'group');
+    const cityCol = findCol('city', 'region', 'location', 'state');
+    const qtyCol = findCol('quantity', 'qty', 'units');
+
+    const catMap = {}, cityMap = {};
+    records.forEach(r => {
+      const qty = qtyCol ? (parseFloat(r[qtyCol]) || 1) : 1;
+      let rev = revCol ? (parseFloat(String(r[revCol]).replace(/[$₹,]/g, '')) || 0) : 0;
+      if (rev < 10000 && qty > 1 && revCol && !revCol.toLowerCase().includes('total')) rev *= qty;
+      if (catCol && r[catCol]) { catMap[r[catCol]] = (catMap[r[catCol]] || 0) + rev; }
+      if (cityCol && r[cityCol]) { cityMap[r[cityCol]] = (cityMap[r[cityCol]] || 0) + rev; }
+    });
+    return {
+      category: Object.entries(catMap).slice(0, 6).map(([name, value]) => ({ name, value: Math.round(value) })),
+      city: Object.entries(cityMap).slice(0, 6).map(([city, revenue]) => ({ city, revenue: Math.round(revenue) }))
+    };
+  }, [localFile, records]);
+
+  const charts = localCharts || analyticsData?.analytics?.charts || {};
   const defaultKpis = analyticsData?.analytics?.kpis || {};
 
   // Compute Automated Real Top 4 KPI Cards (No Fake Data)
@@ -122,10 +148,20 @@ export default function Analytics() {
   // Dynamic user-added KPI Cards & Custom Charts State
   const [customKpis, setCustomKpis] = useState([]);
 
-  // Sync customKpis with automatedKpis when automatedKpis load or change
+  // Sync customKpis with automatedKpis when automatedKpis load or change, but only if we haven't modified it yet
+  // Or just initialize it on first valid load
+  const [isInitialized, setIsInitialized] = useState(false);
   useEffect(() => {
-    setCustomKpis(automatedKpis);
-  }, [automatedKpis]);
+    if (automatedKpis.length > 0 && !isInitialized) {
+      setCustomKpis(automatedKpis);
+      setIsInitialized(true);
+    }
+  }, [automatedKpis, isInitialized]);
+
+  // When activeFileId changes, we might want to re-initialize
+  useEffect(() => {
+    setIsInitialized(false);
+  }, [activeFileId]);
 
   const [customCharts, setCustomCharts] = useState([]);
   

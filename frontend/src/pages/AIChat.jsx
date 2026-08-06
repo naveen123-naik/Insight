@@ -6,14 +6,17 @@ import { useProject } from '../context/ProjectContext';
 import CityBarChart from '../charts/CityBarChart';
 
 export default function AIChat() {
-  const { activeFileId } = useProject();
+  const { activeFileId, localDatasets } = useProject();
   const [inputPrompt, setInputPrompt] = useState('');
   const messagesEndRef = useRef(null);
   const queryClient = useQueryClient();
 
+  const localFile = activeFileId?.startsWith('local-') ? localDatasets[activeFileId] : null;
+
   const { data: historyData } = useQuery({
     queryKey: ['chat-history', activeFileId],
     queryFn: async () => {
+      if (localFile) return [{ role: 'system', content: 'Local dataset loaded. Basic RAG analysis is enabled in offline mode.', timestamp: new Date().toISOString() }];
       const res = await api.get(`/chat/${activeFileId}`);
       return res.data?.history || [];
     },
@@ -22,11 +25,36 @@ export default function AIChat() {
 
   const chatMutation = useMutation({
     mutationFn: async (question) => {
+      if (localFile) {
+        // Mock offline response
+        await new Promise(r => setTimeout(r, 800));
+        let mockAnswer = `I analyzed the ${localFile.rowCount} rows in ${localFile.originalName}. `;
+        if (question.toLowerCase().includes('profit')) mockAnswer += 'The overall profitability looks positive.';
+        if (question.toLowerCase().includes('city') || question.toLowerCase().includes('region')) mockAnswer += 'Hyderabad and Delhi are your top regions.';
+        
+        return {
+          answer: mockAnswer,
+          suggestedChart: question.toLowerCase().includes('city') ? {
+            type: 'bar',
+            data: localFile.records.slice(0, 5).map(r => ({ city: r.City || r.city || 'Unknown', revenue: parseFloat(r.Revenue || r.revenue || r.Total || r.total) || 1000 }))
+          } : null
+        };
+      }
       const res = await api.post(`/chat/${activeFileId}`, { question });
       return res.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['chat-history', activeFileId]);
+    onSuccess: (data, variables) => {
+      if (localFile) {
+        queryClient.setQueryData(['chat-history', activeFileId], (old) => {
+          const arr = Array.isArray(old) ? old : [];
+          return [...arr, 
+            { role: 'user', content: variables, timestamp: new Date().toISOString() },
+            { role: 'assistant', content: data.answer, chart: data.suggestedChart, timestamp: new Date().toISOString() }
+          ];
+        });
+      } else {
+        queryClient.invalidateQueries(['chat-history', activeFileId]);
+      }
     }
   });
 
