@@ -132,7 +132,39 @@ export default function Dashboard() {
     ]
   };
 
-  const charts = data?.analytics?.charts || {};
+  // Compute charts from local records when backend not available
+  const localCharts = useMemo(() => {
+    if (!localFile || !records.length) return null;
+    const sample = records[0] || {};
+    const keys = Object.keys(sample);
+    const findCol = (...kws) => keys.find(k => kws.some(kw => k.toLowerCase().includes(kw))) || null;
+    const dateCol = findCol('date', 'time', 'day', 'month');
+    const revCol = findCol('revenue', 'amount', 'price', 'sales', 'total');
+    const profitCol = findCol('profit', 'margin');
+    const catCol = findCol('category', 'type', 'group');
+    const cityCol = findCol('city', 'region', 'location', 'state');
+    const qtyCol = findCol('quantity', 'qty', 'units');
+
+    const trendMap = {}, catMap = {}, cityMap = {};
+    records.forEach(r => {
+      const qty = qtyCol ? (parseFloat(r[qtyCol]) || 1) : 1;
+      let rev = revCol ? (parseFloat(String(r[revCol]).replace(/[$₹,]/g, '')) || 0) : 0;
+      if (rev < 10000 && qty > 1 && revCol && !revCol.toLowerCase().includes('total')) rev *= qty;
+      const profit = profitCol ? (parseFloat(String(r[profitCol]).replace(/[$₹,]/g, '')) || rev * 0.2) : rev * 0.2;
+      const d = dateCol ? String(r[dateCol]).substring(0, 10) : 'N/A';
+      trendMap[d] = trendMap[d] || { date: d, revenue: 0, profit: 0 };
+      trendMap[d].revenue += rev; trendMap[d].profit += profit;
+      if (catCol && r[catCol]) { catMap[r[catCol]] = (catMap[r[catCol]] || 0) + rev; }
+      if (cityCol && r[cityCol]) { cityMap[r[cityCol]] = (cityMap[r[cityCol]] || 0) + rev; }
+    });
+    return {
+      trend: Object.values(trendMap).slice(0, 12).map(d => ({ ...d, revenue: Math.round(d.revenue), profit: Math.round(d.profit) })),
+      category: Object.entries(catMap).slice(0, 6).map(([name, value]) => ({ name, value: Math.round(value) })),
+      city: Object.entries(cityMap).slice(0, 6).map(([city, revenue]) => ({ city, revenue: Math.round(revenue) }))
+    };
+  }, [localFile, records]);
+
+  const charts = localCharts || data?.analytics?.charts || {};
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto font-sans">

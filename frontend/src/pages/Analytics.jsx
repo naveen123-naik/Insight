@@ -9,7 +9,9 @@ import CategoryPieChart from '../charts/CategoryPieChart';
 import CustomChartCard from '../components/CustomChartCard';
 
 export default function Analytics() {
-  const { activeFileId } = useProject();
+  const { activeFileId, localDatasets } = useProject();
+
+  const localFile = activeFileId?.startsWith('local-') ? localDatasets[activeFileId] : null;
 
   // Fetch dataset records and analytics summary
   const { data: fileData } = useQuery({
@@ -18,7 +20,7 @@ export default function Analytics() {
       const res = await api.get(`/files/${activeFileId}`);
       return res.data?.file;
     },
-    enabled: !!activeFileId
+    enabled: !!activeFileId && !localFile
   });
 
   const { data: analyticsData } = useQuery({
@@ -27,10 +29,10 @@ export default function Analytics() {
       const res = await api.get(`/analytics/${activeFileId}`);
       return res.data;
     },
-    enabled: !!activeFileId
+    enabled: !!activeFileId && !localFile
   });
 
-  const records = fileData?.records || [];
+  const records = localFile?.records || fileData?.records || [];
   const charts = analyticsData?.analytics?.charts || {};
   const defaultKpis = analyticsData?.analytics?.kpis || {};
 

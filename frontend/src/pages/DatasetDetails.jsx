@@ -12,8 +12,10 @@ import api from '../services/api';
 import { useProject } from '../context/ProjectContext';
 
 export default function DatasetDetails() {
-  const { activeFileId } = useProject();
+  const { activeFileId, localDatasets } = useProject();
   const [globalFilter, setGlobalFilter] = useState('');
+
+  const localFile = activeFileId?.startsWith('local-') ? localDatasets[activeFileId] : null;
 
   const { data, isLoading } = useQuery({
     queryKey: ['file-details', activeFileId],
@@ -21,10 +23,11 @@ export default function DatasetDetails() {
       const res = await api.get(`/files/${activeFileId}`);
       return res.data?.file;
     },
-    enabled: !!activeFileId
+    enabled: !!activeFileId && !localFile
   });
 
-  const records = data?.records || [];
+  const records = localFile?.records || data?.records || [];
+  const fileName = localFile?.originalName || data?.originalName || 'sales.csv';
 
   const columns = useMemo(() => {
     if (!records.length) return [];
@@ -54,7 +57,7 @@ export default function DatasetDetails() {
             Dataset Grid & Schema
           </h1>
           <p className="text-xs text-[#475569] mt-1">
-            {data?.originalName || 'sales.csv'} • {records.length} Total Records • TanStack Table
+            {fileName} • {records.length} Total Records • TanStack Table
           </p>
         </div>
 
