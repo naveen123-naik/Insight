@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, CheckCircle2, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
-import api from '../services/api';
+import axios from 'axios';
 import { useProject } from '../context/ProjectContext';
+
+// For file uploads, use direct backend URL to bypass Vercel proxy limitations with multipart
+const UPLOAD_URL = (import.meta.env.VITE_API_URL || 'https://insight-1-vf6e.onrender.com/api') + '/files/upload';
 
 export default function Upload() {
   const [file, setFile] = useState(null);
@@ -41,8 +44,12 @@ export default function Upload() {
     formData.append('file', file);
 
     try {
-      const res = await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const token = localStorage.getItem('insightai_token');
+      const res = await axios.post(UPLOAD_URL, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       });
 
       setUploadResult(res.data.file);

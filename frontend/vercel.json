@@ -8,5 +8,17 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
+  ],
+  "functions": {},
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "x-proxy-target",
+          "value": "render-backend"
+        }
+      ]
+    }
   ]
 }

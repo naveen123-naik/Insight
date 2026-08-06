@@ -87,20 +87,20 @@ const sampleFile = {
 };
 fileStore.set(sampleFile.id, sampleFile);
 
-function parseFileToRecords(filePath, originalName) {
+function parseBufferToRecords(buffer, originalName) {
   const ext = path.extname(originalName).toLowerCase();
-  
+
   if (ext === '.csv') {
-    const csvContent = fs.readFileSync(filePath, 'utf8');
+    const csvContent = buffer.toString('utf8');
     const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
     return parsed.data;
   } else if (ext === '.xlsx' || ext === '.xls') {
-    const workbook = XLSX.readFile(filePath);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     return XLSX.utils.sheet_to_json(worksheet);
   } else if (ext === '.json') {
-    const jsonContent = fs.readFileSync(filePath, 'utf8');
+    const jsonContent = buffer.toString('utf8');
     return JSON.parse(jsonContent);
   }
   return [];
@@ -113,7 +113,7 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const records = parseFileToRecords(req.file.path, req.file.originalname);
+    const records = parseBufferToRecords(req.file.buffer, req.file.originalname);
     
     // Call Python FastAPI to auto-clean data
     let cleanResult = await callAIService('/clean', { records });
