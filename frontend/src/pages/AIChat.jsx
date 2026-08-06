@@ -16,7 +16,7 @@ export default function AIChat() {
   const { data: historyData } = useQuery({
     queryKey: ['chat-history', activeFileId],
     queryFn: async () => {
-      if (localFile) return [{ role: 'system', content: 'Local dataset loaded. Basic RAG analysis is enabled in offline mode.', timestamp: new Date().toISOString() }];
+      if (localFile) return [{ id: 'sys-1', question: 'System Status', answer: 'Local dataset loaded. Basic RAG analysis is enabled in offline mode.' }];
       const res = await api.get(`/chat/${activeFileId}`);
       return res.data?.history || [];
     },
@@ -36,7 +36,7 @@ export default function AIChat() {
           answer: mockAnswer,
           suggestedChart: question.toLowerCase().includes('city') ? {
             type: 'bar',
-            data: localFile.records.slice(0, 5).map(r => ({ city: r.City || r.city || 'Unknown', revenue: parseFloat(r.Revenue || r.revenue || r.Total || r.total) || 1000 }))
+            data: localFile.records.slice(0, 5).map(r => ({ name: r.City || r.city || 'Unknown', value: parseFloat(r.Revenue || r.revenue || r.Total || r.total) || 1000 }))
           } : null
         };
       }
@@ -47,10 +47,12 @@ export default function AIChat() {
       if (localFile) {
         queryClient.setQueryData(['chat-history', activeFileId], (old) => {
           const arr = Array.isArray(old) ? old : [];
-          return [...arr, 
-            { role: 'user', content: variables, timestamp: new Date().toISOString() },
-            { role: 'assistant', content: data.answer, chart: data.suggestedChart, timestamp: new Date().toISOString() }
-          ];
+          return [...arr, {
+            id: Date.now().toString(),
+            question: variables,
+            answer: data.answer,
+            chartData: data.suggestedChart?.data || null
+          }];
         });
       } else {
         queryClient.invalidateQueries(['chat-history', activeFileId]);
