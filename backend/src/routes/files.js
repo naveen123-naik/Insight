@@ -12,26 +12,80 @@ const router = express.Router();
 // In-memory persistent database store fallback
 const fileStore = new Map();
 
-// Initialize with default demo sales dataset if available
-const sampleCsvPath = path.join(__dirname, '../../../docs/sales.csv');
-if (fs.existsSync(sampleCsvPath)) {
-  const csvText = fs.readFileSync(sampleCsvPath, 'utf8');
-  const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-  const records = parsed.data;
-  
-  const sampleFile = {
-    id: 'sample-sales-001',
-    userId: 'demo-user-123',
-    filename: 'sales.csv',
-    originalName: 'sales.csv',
-    fileType: 'csv',
-    rowCount: records.length,
-    columnCount: Object.keys(records[0] || {}).length,
-    records: records,
-    createdAt: new Date().toISOString()
-  };
-  fileStore.set(sampleFile.id, sampleFile);
+// Default 34-row sales dataset records fallback
+const defaultSampleRecords = [
+  { Date: '2026-01-01', Product: 'Laptop', Category: 'Electronics', Quantity: '5', Price: '50000', City: 'Hyderabad', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-02', Product: 'Mouse', Category: 'Accessories', Quantity: '20', Price: '700', City: 'Delhi', Cost: '400', Profit: '300' },
+  { Date: '2026-01-03', Product: 'Keyboard', Category: 'Accessories', Quantity: '15', Price: '1500', City: 'Hyderabad', Cost: '900', Profit: '600' },
+  { Date: '2026-01-04', Product: 'Monitor', Category: 'Electronics', Quantity: '8', Price: '15000', City: 'Bangalore', Cost: '11000', Profit: '4000' },
+  { Date: '2026-01-05', Product: 'Laptop', Category: 'Electronics', Quantity: '12', Price: '50000', City: 'Delhi', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-06', Product: 'Headphones', Category: 'Accessories', Quantity: '25', Price: '2500', City: 'Hyderabad', Cost: '1500', Profit: '1000' },
+  { Date: '2026-01-07', Product: 'Mouse', Category: 'Accessories', Quantity: '30', Price: '700', City: 'Bangalore', Cost: '400', Profit: '300' },
+  { Date: '2026-01-08', Product: 'Chair', Category: 'Furniture', Quantity: '4', Price: '12000', City: 'Delhi', Cost: '8000', Profit: '4000' },
+  { Date: '2026-01-09', Product: 'Desk', Category: 'Furniture', Quantity: '3', Price: '25000', City: 'Hyderabad', Cost: '18000', Profit: '7000' },
+  { Date: '2026-01-10', Product: 'Laptop', Category: 'Electronics', Quantity: '7', Price: '50000', City: 'Bangalore', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-11', Product: 'Monitor', Category: 'Electronics', Quantity: '10', Price: '15000', City: 'Hyderabad', Cost: '11000', Profit: '4000' },
+  { Date: '2026-01-12', Product: 'Keyboard', Category: 'Accessories', Quantity: '18', Price: '1500', City: 'Delhi', Cost: '900', Profit: '600' },
+  { Date: '2026-01-13', Product: 'Laptop', Category: 'Electronics', Quantity: '9', Price: '50000', City: 'Hyderabad', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-14', Product: 'Mouse', Category: 'Accessories', Quantity: '40', Price: '700', City: 'Delhi', Cost: '400', Profit: '300' },
+  { Date: '2026-01-15', Product: 'Headphones', Category: 'Accessories', Quantity: '22', Price: '2500', City: 'Bangalore', Cost: '1500', Profit: '1000' },
+  { Date: '2026-01-16', Product: 'Chair', Category: 'Furniture', Quantity: '6', Price: '12000', City: 'Hyderabad', Cost: '8000', Profit: '4000' },
+  { Date: '2026-01-17', Product: 'Desk', Category: 'Furniture', Quantity: '2', Price: '25000', City: 'Delhi', Cost: '18000', Profit: '7000' },
+  { Date: '2026-01-18', Product: 'Laptop', Category: 'Electronics', Quantity: '15', Price: '50000', City: 'Hyderabad', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-19', Product: 'Monitor', Category: 'Electronics', Quantity: '5', Price: '15000', City: 'Bangalore', Cost: '11000', Profit: '4000' },
+  { Date: '2026-01-20', Product: 'Mouse', Category: 'Accessories', Quantity: '50', Price: '700', City: 'Hyderabad', Cost: '400', Profit: '300' },
+  { Date: '2026-01-21', Product: 'Keyboard', Category: 'Accessories', Quantity: '12', Price: '1500', City: 'Delhi', Cost: '900', Profit: '600' },
+  { Date: '2026-01-22', Product: 'Laptop', Category: 'Electronics', Quantity: '11', Price: '50000', City: 'Delhi', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-23', Product: 'Headphones', Category: 'Accessories', Quantity: '30', Price: '2500', City: 'Hyderabad', Cost: '1500', Profit: '1000' },
+  { Date: '2026-01-24', Product: 'Chair', Category: 'Furniture', Quantity: '8', Price: '12000', City: 'Bangalore', Cost: '8000', Profit: '4000' },
+  { Date: '2026-01-25', Product: 'Desk', Category: 'Furniture', Quantity: '5', Price: '25000', City: 'Hyderabad', Cost: '18000', Profit: '7000' },
+  { Date: '2026-01-26', Product: 'Laptop', Category: 'Electronics', Quantity: '14', Price: '50000', City: 'Hyderabad', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-27', Product: 'Monitor', Category: 'Electronics', Quantity: '12', Price: '15000', City: 'Delhi', Cost: '11000', Profit: '4000' },
+  { Date: '2026-01-28', Product: 'Mouse', Category: 'Accessories', Quantity: '25', Price: '700', City: 'Hyderabad', Cost: '400', Profit: '300' },
+  { Date: '2026-01-29', Product: 'Keyboard', Category: 'Accessories', Quantity: '20', Price: '1500', City: 'Bangalore', Cost: '900', Profit: '600' },
+  { Date: '2026-01-30', Product: 'Laptop', Category: 'Electronics', Quantity: '8', Price: '50000', City: 'Delhi', Cost: '40000', Profit: '10000' },
+  { Date: '2026-01-31', Product: 'Headphones', Category: 'Accessories', Quantity: '35', Price: '2500', City: 'Hyderabad', Cost: '1500', Profit: '1000' },
+  { Date: '2026-02-01', Product: 'Laptop', Category: 'Electronics', Quantity: '16', Price: '50000', City: 'Hyderabad', Cost: '40000', Profit: '10000' },
+  { Date: '2026-02-02', Product: 'Mouse', Category: 'Accessories', Quantity: '45', Price: '700', City: 'Delhi', Cost: '400', Profit: '300' },
+  { Date: '2026-02-03', Product: 'Monitor', Category: 'Electronics', Quantity: '9', Price: '15000', City: 'Bangalore', Cost: '11000', Profit: '4000' }
+];
+
+// Initialize default demo sales dataset
+let sampleRecords = defaultSampleRecords;
+const possiblePaths = [
+  path.join(__dirname, '../../../docs/sales.csv'),
+  path.join(__dirname, '../../docs/sales.csv'),
+  path.join(process.cwd(), 'docs/sales.csv'),
+  path.join(process.cwd(), 'sales.csv')
+];
+
+for (const p of possiblePaths) {
+  if (fs.existsSync(p)) {
+    try {
+      const csvText = fs.readFileSync(p, 'utf8');
+      const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+      if (parsed.data && parsed.data.length > 0) {
+        sampleRecords = parsed.data;
+        break;
+      }
+    } catch (e) {
+      console.warn('Failed reading sample csv from path:', p);
+    }
+  }
 }
+
+const sampleFile = {
+  id: 'sample-sales-001',
+  userId: 'demo-user-123',
+  filename: 'sales.csv',
+  originalName: 'sales.csv',
+  fileType: 'csv',
+  rowCount: sampleRecords.length,
+  columnCount: Object.keys(sampleRecords[0] || {}).length,
+  records: sampleRecords,
+  createdAt: new Date().toISOString()
+};
+fileStore.set(sampleFile.id, sampleFile);
 
 function parseFileToRecords(filePath, originalName) {
   const ext = path.extname(originalName).toLowerCase();
