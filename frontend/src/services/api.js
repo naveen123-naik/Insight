@@ -1,8 +1,13 @@
 import axios from 'axios';
 
-// Use env variable if set, otherwise fall back to relative /api (proxied to Render via vercel.json)
+// Ensure the base URL always ends with /api (fixes user Vercel env config missing /api)
+let base = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://insight-1-vf6e.onrender.com/api' : '/api');
+if (base && !base.endsWith('/api')) {
+  base = base.replace(/\/$/, '') + '/api';
+}
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://insight-1-vf6e.onrender.com/api' : '/api'),
+    baseURL: base,
     headers: {
           'Content-Type': 'application/json'
     }
