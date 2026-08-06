@@ -58,7 +58,7 @@ export default function Upload() {
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState('');
 
-  const { fetchFiles, setActiveFileId } = useProject();
+  const { fetchFiles, setActiveFileId, addLocalDataset } = useProject();
   const navigate = useNavigate();
 
   const handleFileChange = (e) => {
@@ -89,32 +89,45 @@ export default function Upload() {
     setProgress('Reading file...');
 
     try {
-      // Step 1: Parse file in browser (no multipart needed)
+      // Step 1: Parse file in browser
       const { records, fileType } = await parseFileInBrowser(file);
 
       if (!records || records.length === 0) {
         throw new Error('File appears to be empty or has no readable rows.');
       }
 
-      setProgress(`Parsed ${records.length} rows. Uploading to server...`);
+      setProgress(`Parsed ${records.length} rows. Processing...`);
 
-      // Step 2: Send JSON records to backend via Vercel proxy (no multipart issues)
-      const res = await api.post('/files/upload-json', {
-        records,
-        originalName: file.name,
-        fileType
-      });
+      // Step 2: Store locally (works immediately, no backend needed)
+      const localMeta = addLocalDataset(records, file.name, fileType);
 
-      setUploadResult(res.data.file);
-      setProgress('');
-      await fetchFiles();
-      if (res.data.file?.id) {
-        setActiveFileId(res.data.file.id);
+      // Step 3: Also try to sync to backend (optional - doesn't block success)
+      try {
+        const res = await api.post('/files/upload-json', {
+          records,
+          originalName: file.name,
+          fileType
+        });
+        // If backend succeeds, switch to backend file ID
+        if (res.data?.file?.id) {
+          setActiveFileId(res.data.file.id);
+          await fetchFiles();
+        }
+      } catch (backendErr) {
+        console.warn('Backend sync skipped (using local storage):', backendErr.message);
+        // Don't fail - local storage already has the data
       }
+
+      setUploadResult({
+        ...localMeta,
+        cleanIssues: ['Data parsed successfully', `${records.length} rows detected`, `${localMeta.columnCount} columns detected`]
+      });
+      setProgress('');
+
     } catch (err) {
       console.error('Upload error:', err);
       setProgress('');
-      setError(err.response?.data?.error || err.message || 'File upload failed. Please try again.');
+      setError(err.message || 'File upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }

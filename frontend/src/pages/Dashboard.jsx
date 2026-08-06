@@ -10,7 +10,10 @@ import CategoryPieChart from '../charts/CategoryPieChart';
 import CityBarChart from '../charts/CityBarChart';
 
 export default function Dashboard() {
-  const { activeFileId } = useProject();
+  const { activeFileId, localDatasets } = useProject();
+
+  // Check if this is a locally-uploaded file (no backend required)
+  const localFile = activeFileId?.startsWith('local-') ? localDatasets[activeFileId] : null;
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', activeFileId],
@@ -18,7 +21,7 @@ export default function Dashboard() {
       const res = await api.get(`/analytics/${activeFileId}`);
       return res.data;
     },
-    enabled: !!activeFileId
+    enabled: !!activeFileId && !localFile // skip API call for local files
   });
 
   const { data: fileData } = useQuery({
@@ -27,10 +30,11 @@ export default function Dashboard() {
       const res = await api.get(`/files/${activeFileId}`);
       return res.data?.file;
     },
-    enabled: !!activeFileId
+    enabled: !!activeFileId && !localFile // skip API call for local files
   });
 
-  const records = fileData?.records || [];
+  // Use local records first, then backend records
+  const records = localFile?.records || fileData?.records || [];
 
   // Helper function to extract numeric values from formatted strings
   const cleanVal = (v, def = 0) => {
