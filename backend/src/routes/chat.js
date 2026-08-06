@@ -28,8 +28,52 @@ router.post('/:fileId', authenticateToken, async (req, res) => {
     });
 
     if (!chatResult) {
-      let answer = `Analyzed dataset '${file.originalName}'. Total records: ${file.rowCount}.`;
-      chatResult = { answer, chart_type: "text", chart_data: null };
+      const records = file.records || [];
+      const q = question.toLowerCase();
+      let mockAnswer = `Analyzed dataset '${file.originalName}'. Total records: ${file.rowCount}.`;
+      let chartData = null;
+
+      try {
+        if (q.includes('profit') && q.includes('product')) {
+          const prodMap = {};
+          records.forEach(r => {
+            const p = String(r.Profit || r.profit || 0).replace(/[^0-9.-]+/g,"");
+            const name = r.Product || r.product || r.Item || 'Unknown';
+            prodMap[name] = (prodMap[name] || 0) + (parseFloat(p) || 0);
+          });
+          const topProd = Object.entries(prodMap).sort((a,b) => b[1] - a[1])[0];
+          if (topProd) mockAnswer = `Based on the data, the product that made the highest profit is **${topProd[0]}** with a total profit of ₹${topProd[1].toLocaleString('en-IN')}.`;
+        } else if (q.includes('city') || q.includes('region')) {
+          const cityMap = {};
+          records.forEach(r => {
+            const rev = String(r.Revenue || r.revenue || r.Total || r.total || r.Price || 0).replace(/[^0-9.-]+/g,"");
+            const city = r.City || r.city || r.Region || 'Unknown';
+            cityMap[city] = (cityMap[city] || 0) + (parseFloat(rev) || 0);
+          });
+          const topCity = Object.entries(cityMap).sort((a,b) => b[1] - a[1])[0];
+          if (topCity) mockAnswer = `The city generating the highest revenue is **${topCity[0]}** with ₹${topCity[1].toLocaleString('en-IN')}.`;
+          chartData = Object.entries(cityMap).slice(0, 5).map(([name, value]) => ({ name, value }));
+        } else if (q.includes('january') || q.includes('summary')) {
+          let total = 0;
+          records.forEach(r => {
+            const rev = String(r.Revenue || r.revenue || r.Total || r.total || r.Price || 0).replace(/[^0-9.-]+/g,"");
+            total += (parseFloat(rev) || 0);
+          });
+          mockAnswer = `The total sales summary shows a cumulative revenue of ₹${total.toLocaleString('en-IN')} across ${records.length} recorded transactions.`;
+        } else if (q.includes('average')) {
+          let total = 0;
+          records.forEach(r => {
+            const rev = String(r.Revenue || r.revenue || r.Total || r.total || r.Price || 0).replace(/[^0-9.-]+/g,"");
+            total += (parseFloat(rev) || 0);
+          });
+          const avg = total / (records.length || 1);
+          mockAnswer = `The average order value (AOV) across all records is ₹${avg.toLocaleString('en-IN', {maximumFractionDigits: 2})}.`;
+        }
+      } catch (e) {
+        mockAnswer += ' (Could not compute metric).';
+      }
+
+      chatResult = { answer: mockAnswer, chart_type: chartData ? "bar" : "text", chart_data: chartData };
     }
 
     const messageEntry = {
