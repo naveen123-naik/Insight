@@ -1,0 +1,71 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  Files     File[]
+  Chats     Chat[]
+}
+
+model File {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  filename        String
+  originalName    String
+  filepath        String
+  fileType        String
+  rowCount        Int       @default(0)
+  columnCount     Int       @default(0)
+  cleanedDataJson String?
+  statsSummary    String?
+  createdAt       DateTime  @default(now())
+  Insights        Insight[]
+  Chats           Chat[]
+  Reports         Report[]
+}
+
+model Insight {
+  id               String   @id @default(uuid())
+  fileId           String
+  file             File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  summaryText      String
+  highlightsJson   String
+  recommendations  String
+  anomaliesJson    String
+  forecastJson     String
+  createdAt        DateTime @default(now())
+}
+
+model Chat {
+  id        String   @id @default(uuid())
+  fileId    String
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  question  String
+  answer    String
+  chartData String?
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  fileId      String
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  title       String
+  reportType  String
+  contentJson String
+  createdAt   DateTime @default(now())
+}

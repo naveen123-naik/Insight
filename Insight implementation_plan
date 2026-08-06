@@ -1,0 +1,181 @@
+# Implementation Plan - InsightAI: AI-Powered Business Intelligence Platform
+
+InsightAI is an end-to-end AI-powered Business Intelligence platform that empowers businesses to upload tabular datasets (Excel, CSV, JSON), auto-clean data, generate interactive rich visual dashboards, run predictive forecasts, detect anomalies, generate natural language insights, and chat with their data using RAG.
+
+---
+
+## Architecture Overview
+
+```
+                          ┌─────────────────────────────┐
+                          │   React Frontend (Vite)     │
+                          │   - Tailwind CSS & Framer   │
+                          │   - Recharts & TanStack     │
+                          └──────────────┬──────────────┘
+                                         │ HTTP / WS
+                                         ▼
+                          ┌─────────────────────────────┐
+                          │   Node.js / Express Backend │
+                          │   - JWT Auth & Multer       │
+                          │   - Prisma ORM / PostgreSQL │
+                          │   - WebSockets Server       │
+                          └──────────────┬──────────────┘
+                                         │ REST API Inter-Service
+                                         ▼
+                          ┌─────────────────────────────┐
+                          │    Python AI Service        │
+                          │    (FastAPI / Pandas)       │
+                          │  - Auto Data Cleaning       │
+                          │  - Automated AI Insights    │
+                          │  - Forecasting (Prophet/TS) │
+                          │  - Anomaly (IsolationForest)│
+                          │  - Tabular RAG / Data Chat  │
+                          └─────────────────────────────┘
+```
+
+---
+
+## Proposed Project Structure
+
+```
+InsightAI/
+├── frontend/                  # React + Vite + Tailwind CSS + Recharts
+│   ├── public/
+│   └── src/
+│       ├── assets/
+│       ├── components/        # UI primitives, Sidebar, Navbar, Modal, Chart Cards
+│       ├── charts/            # Recharts wrappers (Bar, Line, Area, Pie, Heatmap, Scatter, BoxPlot)
+│       ├── pages/             # Login, Register, Dashboard, Upload, Analytics, Forecast, Chat, Reports
+│       ├── context/           # AuthContext, ThemeContext, ProjectContext
+│       ├── services/          # API client (Axios / Fetch wrappers)
+│       └── utils/             # Formatters, export helpers (PDF/CSV)
+├── backend/                   # Node.js + Express + Prisma ORM
+│   ├── prisma/
+│   │   └── schema.prisma      # DB Models: Users, Projects, Files, Insights, Chats, Reports
+│   ├── src/
+│   │   ├── controllers/       # Auth, Files, Analytics, Chat, Reports
+│   │   ├── middleware/        # JWT Auth, Multer File Upload
+│   │   ├── routes/            # API endpoints
+│   │   ├── services/          # Communication with AI Service
+│   │   └── server.js          # Express app + Socket.io
+│   └── uploads/               # Raw uploaded data files
+├── ai-service/                # Python FastAPI Microservice
+│   ├── app.py                 # FastAPI app entry point
+│   ├── data_cleaning.py       # Auto missing values, deduplication, type casting
+│   ├── analytics.py           # Auto KPI calculation & chart data aggregation
+│   ├── insights.py            # Natural language insight generation
+│   ├── forecasting.py         # Time series forecasting (Prophet / Trend analysis)
+│   ├── anomaly.py             # Anomaly detection (Isolation Forest / Outliers)
+│   └── rag.py                 # RAG / Data Q&A query engine
+└── docs/                      # Documentation & Sample Data (sales.xlsx, inventory.csv)
+```
+
+---
+
+## Key Features & Component Breakdown
+
+### 1. Frontend (React + Tailwind CSS + Recharts + Framer Motion)
+- **Design Aesthetic**: Premium glassmorphism UI with vibrant dark mode default, custom color tokens, responsive sidebar layout, smooth transitions.
+- **Pages**:
+  - **Login & Register**: JWT Authentication form with toggleable demo mode.
+  - **Dashboard Overview**: KPI metric cards (Total Revenue, Profit, Total Sales, Top Category, Top City) with delta indicators, monthly revenue trend chart, recent activity feed.
+  - **Upload Dataset**: Interactive drag-and-drop zone supporting `.xlsx`, `.xls`, `.csv`, `.json` with real-time cleaning preview & column-type auto-detection.
+  - **Dataset Details / Data Cleaner**: TanStack Table grid showing raw vs. cleaned data, missing value suggestions, outliers, and schema customization.
+  - **Analytics Hub**: Dynamic chart builder with Bar, Line, Area, Pie, Heatmap, Scatter, Box Plot, and Histogram views, interactive filtering by category/date range.
+  - **Predictive Forecast**: Time-series forecasting tab displaying historical data alongside predicted future revenue/sales with upper/lower confidence bounds.
+  - **Anomaly Alert Center**: Isolation Forest results listing flagged transaction anomalies in red with severity scores and anomaly explanations.
+  - **Chat with Your Data (RAG)**: Conversational chat interface allowing natural language questions (e.g. *"Which city had the highest sales?"*, *"Show January sales"*), returning structured answers and instant chart responses.
+  - **Reports & Export**: One-click PDF generation, Excel summary export, and PowerPoint export template.
+
+### 2. Backend (Node.js + Express + Prisma)
+- **Auth**: JWT signup, login, profile, password hash with `bcryptjs`.
+- **File Upload Handler**: `multer` disk storage with MIME validation.
+- **Service Orchestration**: Passes uploaded files to the Python FastAPI microservice for processing and stores structured results in PostgreSQL / SQLite.
+- **Real-Time Signals**: Socket.io server to broadcast live updates when datasets finish processing or when multi-user changes occur.
+
+### 3. Python AI Microservice (FastAPI + Pandas + Scikit-Learn + Prophet/Statsmodels)
+- **Auto Data Cleaning**: Identifies NaNs, converts dates, strips whitespace, standardizes currency strings, identifies outliers using Z-score / IQR.
+- **Statistics & Chart Generator**: Computes summary statistics, correlation matrices, categorical distributions, and time-series groupings.
+- **Insights Engine**: Rule-based + LLM generation of executive summaries, growth drivers, drop alerts, and recommendations.
+- **Forecasting Module**: Fits time-series model on historical date/metric columns and projects future performance (30/60/90 days).
+- **Anomaly Detection Module**: Trains Isolation Forest classifier on numeric metrics (Revenue, Price, Quantity) to detect anomalous transactions.
+- **RAG & Tabular Q&A**: Hybrid query engine (Pandas SQL query synthesizer + vector/semantic similarity) to answer complex questions strictly from dataset context.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Tech Stack Confirmation & Full Monorepo Execution Plan**:
+> We will construct the entire monorepo in `InsightAI/` inside the current workspace (`c:\Users\naikn\OneDrive\Desktop\Insight`).
+> 1. **Frontend**: Vite + React + Tailwind CSS + Recharts + Framer Motion.
+> 2. **Backend**: Express.js + Prisma ORM (configured with SQLite for instant local zero-dependency execution, easily configurable to PostgreSQL).
+> 3. **AI Service**: Python FastAPI backend with Pandas, Scikit-learn, and Statsmodels/Prophet fallback.
+> 4. **Sample Datasets**: Included `sales.xlsx` / `sales.csv` for immediate testing out-of-the-box.
+
+---
+
+## Open Questions
+
+> [!NOTE]
+> 1. Would you like the default database for local development to be set up as **SQLite via Prisma** (so you can run it immediately without external Postgres setup), while keeping Postgres production schema ready?
+> 2. For the AI LLM integration in Chat/Insights, shall we provide a dual mode (Local intelligent analytical engine + optional Gemini/OpenAI API key integration)?
+
+---
+
+## Implementation Steps
+
+### Phase 1: Project Setup & Workspace Skeleton
+- Initialize `frontend` with React + Vite + Tailwind CSS.
+- Initialize `backend` with Node.js + Express + Prisma + Socket.io.
+- Initialize `ai-service` with FastAPI + Pandas + Scikit-Learn.
+- Create mock dataset generator script (`sales.xlsx`, `sales.csv`, `inventory.json`).
+
+### Phase 2: Python AI Engine Implementation
+- Write `data_cleaning.py`: Auto-type conversion, null handling, duplicate removal.
+- Write `analytics.py`: KPI calculation, auto-chart data generation.
+- Write `insights.py`: Executive summaries, highlights, actionable recommendations.
+- Write `forecasting.py`: Time-series trend and future projection engine.
+- Write `anomaly.py`: Isolation Forest anomaly detection with red flag scoring.
+- Write `rag.py`: Data query solver engine for natural language Q&A.
+- Expose FastAPI endpoints in `app.py`.
+
+### Phase 3: Express Backend Gateway & Database
+- Define Prisma schema for `User`, `Project`, `File`, `Insight`, `Chat`, `Report`.
+- Implement JWT authentication middleware.
+- Implement `/api/files/upload` routing to save files and pass to AI service.
+- Implement `/api/analytics`, `/api/chat`, `/api/forecast`, `/api/anomalies`, `/api/reports`.
+
+### Phase 4: Frontend Development (React + Tailwind + Recharts)
+- Build Modern Dark/Light Design System & Theme Provider.
+- Build Navigation Bar, Sidebar, and App Shell layout.
+- Build **Dashboard Overview** with KPI metric cards & chart components.
+- Build **Data Upload & Cleaning Page** with live preview table & fix toggles.
+- Build **Analytics Hub** with interactive chart types (Bar, Line, Area, Pie, Scatter, Heatmap).
+- Build **Predictive Forecast Page** with trend charts and confidence intervals.
+- Build **Anomaly Detection Page** with flagged anomaly cards and threshold controls.
+- Build **Chat with Data (RAG)** UI with interactive responses, message history, and filter actions.
+- Build **Reports Generator** with instant export options.
+
+### Phase 5: Verification & End-to-End Walkthrough
+- Test full flow: Upload `sales.xlsx` -> Clean -> View Dashboard -> Run Forecast -> Detect Anomalies -> Ask Natural Language Questions -> Download Report.
+- Create walkthrough artifact.
+
+---
+
+## Verification Plan
+
+### Automated & Unit Tests
+- Backend API endpoints test: `npm test` or HTTP route checks for `/api/auth/register`, `/api/files/upload`, `/api/chat`.
+- Python AI Service tests: Test data cleaning, anomaly detection output format, and forecasting return schema.
+
+### Manual End-to-End Verification
+- Upload sample `sales.xlsx` dataset (with columns: Date, Product, Category, Quantity, Price, City).
+- Verify KPI summary cards render accurate calculations.
+- Test interactive chart filtering by category and date range.
+- Verify Anomaly Detection highlights suspicious rows in red.
+- Test AI Chat with questions like:
+  - "Which city generated the highest revenue?"
+  - "Show total sales for Electronics."
+  - "Predict next month revenue."
+- Test PDF/Excel Report export.
